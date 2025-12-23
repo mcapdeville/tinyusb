@@ -183,10 +183,12 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
   const uint8_t ep_count = dwc2_controller->ep_count;
+  const uint8_t ep_in_count = dwc2_controller->ep_in_count;
   const uint8_t epnum = tu_edpt_number(ep_addr);
   const uint8_t dir = tu_edpt_dir(ep_addr);
 
-  TU_ASSERT(epnum < ep_count);
+  if (dir && epnum >= ep_in_count)
+		  return true;
 
   uint16_t fifo_size = tu_div_ceil(packet_size, 4);
   if (dir == TUSB_DIR_OUT) {
@@ -249,9 +251,13 @@ static void dfifo_device_init(uint8_t rhport) {
 // Endpoint
 //--------------------------------------------------------------------
 static void edpt_activate(uint8_t rhport, const tusb_desc_endpoint_t* p_endpoint_desc) {
+  const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const uint8_t epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
   const uint8_t dir = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
+
+  if (dir && epnum >= dwc2_controller->ep_in_count)
+	  return;
 
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = tu_edpt_packet_size(p_endpoint_desc);
@@ -281,12 +287,16 @@ static void edpt_activate(uint8_t rhport, const tusb_desc_endpoint_t* p_endpoint
 }
 
 static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
+  const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
   (void) rhport;
 
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const uint8_t epnum = tu_edpt_number(ep_addr);
   const uint8_t dir = tu_edpt_dir(ep_addr);
   dwc2_dep_t* dep = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][epnum];
+
+  if (dir && ep_addr >= dwc2_controller->ep_in_count)
+	  return;
 
   if (dir == TUSB_DIR_IN) {
     if (!(dep->diepctl & DIEPCTL_EPENA)) {
@@ -333,12 +343,16 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
 // We must make sure that this function is not called when the EP is disabled
 // Must be called from critical section
 static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uint8_t dir) {
+  const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, dir);
   dwc2_dep_t* dep = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][epnum];
 
   uint16_t num_packets;
   uint16_t total_bytes;
+
+  if (dir && epnum >= dwc2_controller->ep_in_count)
+	  return;
 
   // EP0 is limited to one packet per xfer
   if (epnum == 0) {
@@ -585,10 +599,14 @@ bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpo
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
+  const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   bool ret;
+
+  if (dir && epnum >= dwc2_controller->ep_in_count)
+	  return true;
 
   usbd_spin_lock(false);
 
@@ -623,10 +641,14 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
   // USB buffers always work in bytes so to avoid unnecessary divisions we demand item_size = 1
   TU_ASSERT(ff->item_size == 1);
 
+  const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   bool ret;
+
+  if (dir && epnum >= dwc2_controller->ep_in_count)
+	  return true;
 
   usbd_spin_lock(false);
 
