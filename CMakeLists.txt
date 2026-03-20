@@ -60,6 +60,7 @@ set(srcs
 
 set(requirements_private
     esp_netif   # required by rndis_reports.c: #include "netif/ethernet.h"
+	main
     )
 
 if(${target} STREQUAL "esp32p4")
