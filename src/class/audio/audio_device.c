@@ -506,7 +506,7 @@ bool tud_audio_n_clear_ep_out_ff(uint8_t func_id) {
 }
 
 tu_fifo_t *tud_audio_n_get_ep_out_ff(uint8_t func_id) {
-  if (func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL) {
+  if (func_id < CFG_TUD_AUDIO) {
     return &_audiod_fct[func_id].ep_out_ff;
   }
   return NULL;
@@ -557,7 +557,7 @@ bool tud_audio_n_clear_ep_in_ff(uint8_t func_id) {
 }
 
 tu_fifo_t *tud_audio_n_get_ep_in_ff(uint8_t func_id) {
-  if (func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL) {
+  if (func_id < CFG_TUD_AUDIO) {
     return &_audiod_fct[func_id].ep_in_ff;
   }
   return NULL;
